@@ -1,0 +1,3 @@
+[submodule "crates/ma_ipc"]
+	path = crates/ma_ipc
+	url = https://github.com/louisponet/ma_ipc

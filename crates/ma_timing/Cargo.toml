@@ -1,0 +1,30 @@
+[package]
+name = "ma_timing"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+[dependencies]
+ma_time.workspace = true
+ma_queues = {workspace = true, features=["shmem"]}
+fern.workspace = true
+log.workspace = true
+walkdir.workspace = true
+chrono.workspace = true
+
+rgb = { workspace=true, optional=true }
+textplots = { workspace=true, optional=true }
+crossterm = { workspace=true, optional=true }
+clap = { workspace = true, optional=true }
+ratatui = { workspace = true, optional=true }
+core_affinity = {workspace = true, optional = true}
+
+[features]
+default = []
+timekeeper = ["dep:crossterm", "dep:rgb", "dep:clap", "dep:ratatui", "dep:textplots", "dep:core_affinity"]
+
+[[bin]]
+path = "bin/timekeeper.rs"
+name = "timekeeper"
+required-features=["timekeeper"]
