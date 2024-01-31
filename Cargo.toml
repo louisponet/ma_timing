@@ -1,13 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-"crates/ma_time/",
-"crates/ma_timing/",
-"crates/ma_ipc/crates/ma_queues"
+"crates/*",
 ]
 
 [workspace.package]
-name = "ma_timing"
 version = "0.1.0"
 edition = "2021"
 include = ["**/*.rs", "Cargo.toml"]
@@ -22,8 +19,7 @@ serde = {version="^1",features=["derive"]}
 web-time = "^1.0"
 
 ma_time = {path = "crates/ma_time"}
-ma_ffi = {path = "crates/ma_ipc/crates/ma_ffi", default-features=false}
-ma_queues = {path = "crates/ma_ipc/crates/ma_queues", default-features=false, features=["shmem"]}
+ma_queues = {git = "https://github.com/louisponet/ma_ipc.git", default-features=false, features=["shmem"]}
 
 fern = "^0.6"
 
