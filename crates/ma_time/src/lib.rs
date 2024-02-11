@@ -380,7 +380,7 @@ where
         let out = f();
         let el =start_t.elapsed();
         if el < duration {
-            std::thread::sleep(el.into())
+            std::thread::sleep((duration - el).into())
         }
         out
     } else {
