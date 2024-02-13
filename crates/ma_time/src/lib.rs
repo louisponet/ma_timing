@@ -5,8 +5,8 @@ use std::{
     str::FromStr,
 };
 
+use serde::{Deserialize, Serialize};
 use web_time::UNIX_EPOCH;
-use serde::{Serialize, Deserialize};
 // pub type Instant = quanta::Instant;
 pub type Duration = std::time::Duration;
 pub type Clock = quanta::Clock;
@@ -68,12 +68,12 @@ impl Instant {
 }
 
 fn rdtscp() -> u64 {
-    #[cfg(not(target_arch="wasm32"))]
+    #[cfg(not(target_arch = "wasm32"))]
     {
         use std::arch::x86_64::__rdtscp;
         unsafe { __rdtscp(&mut 0u32 as *mut _) }
     }
-    #[cfg(target_arch="wasm32")]
+    #[cfg(target_arch = "wasm32")]
     {
         global_clock().raw()
     }
@@ -357,43 +357,48 @@ impl FromStr for Nanos {
 }
 
 #[inline(always)]
-pub fn vsync_busy<F, R>(duration: Nanos, f: F) -> R
+pub fn vsync_busy<F, R>(duration: Option<Nanos>, f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    if duration != Nanos(0) {
-        let start_t = Instant::now();
-        let out = f();
-        while start_t.elapsed() < duration {}
-        out
-    } else {
-        f()
-    }
-}
-#[inline(always)]
-pub fn vsync<F, R>(duration: Nanos, f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    if duration != Nanos(0) {
-        let start_t = Instant::now();
-        let out = f();
-        let el =start_t.elapsed();
-        if el < duration {
-            std::thread::sleep((duration - el).into())
+    match duration {
+        Some(duration) if duration != Nanos(0) => {
+            let start_t = Instant::now();
+            let out = f();
+            while start_t.elapsed() < duration {}
+            out
         }
-        out
-    } else {
-        f()
+        _ => f(),
     }
 }
 #[inline(always)]
-pub fn busy_sleep(duration: Nanos) {
-    if duration == Nanos::ZERO {
-        return;
+pub fn vsync<F, R>(duration: Option<Nanos>, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    match duration {
+        Some(duration) if duration != Nanos(0) => {
+            let start_t = Instant::now();
+            let out = f();
+            let el = start_t.elapsed();
+            if el < duration {
+                std::thread::sleep((duration - el).into())
+            }
+            out
+        }
+        _ => f(),
     }
-    let curt = Instant::now();
-    while curt.elapsed() < duration {}
+}
+#[inline(always)]
+pub fn busy_sleep(duration: Option<Nanos>) {
+    match duration {
+        None => return,
+        Some(duration) if duration == Nanos::ZERO => return,
+        Some(duration) => {
+            let curt = Instant::now();
+            while curt.elapsed() < duration {}
+        }
+    }
 }
 
 // pub fn test_system_tune() {
