@@ -410,9 +410,10 @@ impl Repeater {
     pub fn every(interval: Nanos) -> Self {
         Self { interval, last_acted: Instant::now()}
     }
-    pub fn maybe<F>(&mut self, mut f: F) where F: FnMut() -> () {
-        if self.last_acted.elapsed() >= self.interval {
-            f();
+    pub fn maybe<F>(&mut self, mut f: F) where F: FnMut(Nanos) -> () {
+        let el = self.last_acted.elapsed();
+        if el >= self.interval {
+            f(el);
             self.last_acted = Instant::now();
         }
     }
