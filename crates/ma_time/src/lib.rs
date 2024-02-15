@@ -401,6 +401,23 @@ pub fn busy_sleep(duration: Option<Nanos>) {
     }
 }
 
+pub struct Repeater {
+    interval: Nanos,
+    last_acted: Instant
+}
+
+impl Repeater {
+    pub fn every(interval: Nanos) -> Self {
+        Self { interval, last_acted: Instant::now()}
+    }
+    pub fn maybe<F>(&mut self, mut f: F) where F: FnMut() -> () {
+        if self.last_acted.elapsed() >= self.interval {
+            f();
+            self.last_acted = Instant::now();
+        }
+    }
+}
+
 // pub fn test_system_tune() {
 //     unsafe {
 //         let n = 100000;
