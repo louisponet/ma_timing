@@ -28,6 +28,7 @@ pub struct TimingData {
     samples_per_datapoint: usize,
     n_messages: usize,
     last_report: Instant,
+    minimum_duration: Nanos,
 }
 
 impl TimingData {
@@ -36,6 +37,7 @@ impl TimingData {
         samples_per_datapoint: usize,
         n_datapoints: usize,
         clock_overhead: Nanos,
+        minimum_duration: Nanos,
     ) -> Self {
         let measurements = Vec::with_capacity(samples_per_datapoint);
         let averages = CircularBuffer::new(n_datapoints);
@@ -51,6 +53,7 @@ impl TimingData {
             samples_per_datapoint,
             n_messages: 0,
             last_report: Instant::now(),
+            minimum_duration
         }
     }
 
@@ -120,6 +123,9 @@ impl TimingData {
     }
 
     fn track(&mut self, el: Nanos) -> bool {
+        if el < self.minimum_duration {
+            return false
+        }
         self.n_messages += 1;
         self.measurements.push(el);
         if self.measurements.len() == self.samples_per_datapoint {
@@ -209,6 +215,7 @@ impl TimerData {
         samples_per_datapoint: usize,
         n_datapoints: usize,
         clock_overhead: Nanos,
+        minimum_duration: Nanos
     ) -> Self {
         Self {
             name,
@@ -217,12 +224,14 @@ impl TimerData {
                 samples_per_datapoint,
                 n_datapoints,
                 clock_overhead,
+                minimum_duration
             ),
             business_data: TimingData::new(
                 "Business".into(),
                 samples_per_datapoint,
                 n_datapoints,
                 clock_overhead,
+                minimum_duration
             ),
             direction: Direction::Horizontal,
         }
@@ -259,11 +268,13 @@ pub fn clock_overhead() -> Nanos {
     (end - start) / 1_000_000 as u32
 }
 
+//TODO: Have a built in threshold to throw out timing messages that mean nothing
 pub struct TimeKeeper {
     core: usize,
     report_interval: std::time::Duration,
     samples_per_datapoint: usize,
     n_datapoints: usize,
+    minimum_duration: Nanos
 }
 
 impl TimeKeeper {
@@ -272,12 +283,14 @@ impl TimeKeeper {
         report_interval: std::time::Duration,
         samples_per_datapoint: usize,
         n_datapoints: usize,
+        minimum_duration: Nanos,
     ) -> Self {
         Self {
             core,
             report_interval,
             samples_per_datapoint,
             n_datapoints,
+            minimum_duration
         }
     }
 
@@ -312,6 +325,7 @@ impl TimeKeeper {
                             self.samples_per_datapoint,
                             self.n_datapoints,
                             clock_overhead,
+                            self.minimum_duration
                         );
                         time_datas.push(d);
                         let latency_q = ma_queues::Queue::shared(format!("{}/latency-{real_name}", crate::QUEUE_DIR), crate::QUEUE_SIZE, ma_queues::QueueType::SPMC).expect("couldn't open latency queue");
