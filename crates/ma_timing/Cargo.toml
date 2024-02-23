@@ -20,6 +20,10 @@ clap = { workspace = true, optional=true }
 ratatui = { workspace = true, optional=true }
 core_affinity = {workspace = true, optional = true}
 
+[dev-dependencies]
+criterion.workspace = true
+core_affinity.workspace = true
+
 [features]
 default = []
 timekeeper = ["dep:crossterm", "dep:rgb", "dep:clap", "dep:ratatui", "dep:textplots", "dep:core_affinity"]
@@ -28,3 +32,6 @@ timekeeper = ["dep:crossterm", "dep:rgb", "dep:clap", "dep:ratatui", "dep:textpl
 path = "bin/timekeeper.rs"
 name = "timekeeper"
 required-features=["timekeeper"]
+[[bench]]
+name = "timer"
+harness=false

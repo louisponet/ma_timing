@@ -446,6 +446,7 @@ fn draw(frame: &mut Frame, time_datas: &mut Vec<TimerData>, curid: usize) {
         Paragraph::new(namelist).block(Block::new().title("Timers").borders(Borders::ALL)),
         layout[0],
     );
-
-    time_datas[curid].report(frame, layout[1]);
+    if let Some(time_data) = time_datas.get_mut(curid) {
+        time_data.report(frame, layout[1]);
+    }
 }

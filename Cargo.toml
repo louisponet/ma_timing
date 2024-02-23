@@ -13,13 +13,14 @@ authors = ["Louis Ponet <louisponet@gmail.com>"]
 license = "MIT"
 
 [workspace.dependencies]
+ma_time = {path = "crates/ma_time"}
+ma_queues = {git = "https://github.com/louisponet/ma_ipc.git", default-features=false, features=["shmem"]}
+
 quanta = "^0.12"
 once_cell = "^1.18"
 serde = {version="^1",features=["derive"]}
 web-time = "^1.0"
 
-ma_time = {path = "crates/ma_time"}
-ma_queues = {git = "https://github.com/louisponet/ma_ipc.git", default-features=false, features=["shmem"]}
 
 fern = "^0.6"
 
@@ -33,10 +34,11 @@ ratatui = { version = "^0.24", default-features = false, features = ["crossterm"
 chrono = "^0.4"
 shared_memory = "^0.12"
 thiserror = "^1.0"
-core_affinity = "^0.8"
 criterion = "^0.5"
 proc-macro2="^1.0"
 quote = "^1.0"
+core_affinity = "^0.8"
+
 
 [profile.release]
 # debug = true # good for profilers
