@@ -24,7 +24,7 @@ impl LatencyMessage {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum LatencyMeasurement {
     TwoStamps(LatencyMessage),
     Interval(Nanos)
@@ -65,7 +65,7 @@ impl TimingMessage {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum TimingMeasurement {
     TwoStamps(TimingMessage),
     Interval(Nanos)
