@@ -5,11 +5,13 @@
 pub struct CircularBuffer<T> {
     data: Vec<T>,
     mask: usize,
+    // Keep track of which pos is current begin
+    filled: bool,
     // Which box to fill NEXT, i.e. id of the first element in buffer
     pos: usize,
 }
 
-impl<T: Copy> CircularBuffer<T> {
+impl<T> CircularBuffer<T> {
     pub fn new(size: usize) -> Self {
         let realsize = size.next_power_of_two();
         let mut data = Vec::with_capacity(realsize);
@@ -17,6 +19,7 @@ impl<T: Copy> CircularBuffer<T> {
         Self {
             data,
             mask: realsize - 1,
+            filled: false,
             pos: 0,
         }
     }
@@ -24,6 +27,7 @@ impl<T: Copy> CircularBuffer<T> {
     pub fn push(&mut self, v: T) {
         unsafe { *self.data.get_unchecked_mut(self.pos) = v };
         self.pos = (self.pos + 1) & self.mask;
+        self.filled |= self.pos == 0;
     }
 
     #[inline]
@@ -38,32 +42,44 @@ impl<T: Copy> CircularBuffer<T> {
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.mask + 1
+        if self.filled {
+            self.data.len()
+        } else {
+            self.pos
+        }
     }
     #[inline]
-    pub fn last(&self) -> T {
+    pub fn last(&self) -> &T {
         let pos = if self.pos > 1 {
             self.pos - 1
         } else {
             self.mask
         };
-        unsafe { *self.data.get_unchecked(pos) }
+        unsafe { self.data.get_unchecked(pos) }
+    }
+
+    fn first_pos(&self) -> usize {
+        if self.filled {
+            self.pos
+        } else {
+            0
+        }
     }
 }
 
 pub struct Iter<'a, T> {
     // This guy goes around
     pos: usize,
+    count: usize,
     // How many
-    stop_pos: usize,
     buffer: &'a CircularBuffer<T>,
 }
 
 impl<'a, T> Iter<'a, T> {
     fn new(buffer: &'a CircularBuffer<T>) -> Self {
         Self {
-            pos: buffer.pos,
-            stop_pos: buffer.pos + buffer.mask + 1,
+            pos: buffer.first_pos(),
+            count: 0,
             buffer,
         }
     }
@@ -71,16 +87,16 @@ impl<'a, T> Iter<'a, T> {
 
 pub struct IterMut<'a, T> {
     pos: usize,
+    count: usize,
     // How many
-    stop_pos: usize,
     buffer: &'a mut CircularBuffer<T>,
 }
 
 impl<'a, T> IterMut<'a, T> {
     fn new(buffer: &'a mut CircularBuffer<T>) -> Self {
         Self {
-            pos: buffer.pos,
-            stop_pos: buffer.pos + buffer.mask,
+            pos: buffer.first_pos(),
+            count: 0,
             buffer,
         }
     }
@@ -108,11 +124,12 @@ impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.stop_pos {
+        if self.count == self.buffer.len() {
             return None;
         }
         let out = unsafe { self.buffer.data.get_unchecked(self.pos & self.buffer.mask) };
-        self.pos += 1;
+        self.pos = (self.pos + 1) & self.buffer.mask;
+        self.count += 1;
         Some(out)
     }
 }
@@ -123,7 +140,7 @@ where
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos > self.stop_pos {
+        if self.count == self.buffer.len() {
             return None;
         }
 
@@ -132,12 +149,12 @@ where
                 .buffer
                 .data
                 .get_unchecked_mut((self.pos - 1) & self.buffer.mask);
-            self.pos += 1;
+            self.pos = (self.pos + 1) & self.buffer.mask;
+            self.count += 1;
             Some(&mut *(elem as *mut T))
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -148,7 +165,7 @@ mod tests {
     fn test() {
         let mut buf = CircularBuffer::new(32);
         let mut tot = 0;
-        for i in 0..32 {
+        for i in 0..30 {
             buf.push(i);
             tot += i;
         }
@@ -157,9 +174,9 @@ mod tests {
 
         let mut buf = CircularBuffer::new(32);
         let mut tot = 0;
-        for i in 0..35 {
+        for i in 1..36 {
             buf.push(i);
-            if i > 2 {
+            if i > 3 {
                 tot += i;
             }
         }

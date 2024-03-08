@@ -109,6 +109,13 @@ impl Sub<Nanos> for Instant {
         Instant(self.0 - rhs.0 / nanos_for_100 * 100)
     }
 }
+impl Add<Nanos> for Instant {
+    type Output = Instant;
+    fn add(self, rhs: Nanos) -> Self::Output {
+        let nanos_for_100 = global_clock().delta_as_nanos(0, 100);
+        Instant(self.0 + rhs.0 / nanos_for_100 * 100)
+    }
+}
 
 impl PartialEq for Instant {
     fn eq(&self, other: &Self) -> bool {

@@ -142,16 +142,12 @@ impl TimingData {
         let avg = self.averages.last();
         let text: Vec<Line> = vec![
             format!("{} Report for {name}", self.title).into(),
-            format!(
-                "msgs: {} ({} msg/ms)",
+            format!("Statistics for last datapoint with {} msgs ({} msg/s):", 
                 self.n_messages,
-                self.n_messages as f64 / self.last_report.elapsed().as_millis()
+                self.n_messages as f64 / self.last_report.elapsed().as_secs()
             )
             .into(),
-            format!("avg: {avg}").into(),
-            format!("median: {}", self.median).into(),
-            format!("min: {}", self.min).into(),
-            format!("max: {}", self.max).into(),
+            format!("avg: {avg} - median: {} - min: {} - max: {}", self.median, self.min, self.max).into(),
         ]
         .into();
 
@@ -168,12 +164,11 @@ impl TimingData {
             .map(|(i, &p)| (i as f64, p.0 as f64))
             .collect();
 
-        let midpoint = self.avg();
-        let min = self.averages.iter().min().unwrap();
-        let max = self.averages.iter().max().unwrap();
+        let def = Nanos::default();
+        let min = self.averages.iter().min().unwrap_or_else(|| &def);
+        let max = self.averages.iter().max().unwrap_or_else(|| &def);
         let ylabels = vec![
             format!("{min}").into(),
-            format!("{midpoint}").into(),
             format!("{max}").into(),
         ];
 
@@ -196,10 +191,11 @@ impl TimingData {
         .x_axis(xaxis)
         .y_axis(yaxis);
         frame.render_widget(
-            chart.block(Block::new().borders(Borders::ALL)),
+            chart.block(Block::new().borders(Borders::ALL).title(format!("Running avg: {}", self.avg()))),
             sub_layout[1],
         );
         self.n_messages = 0;
+        self.last_report = Instant::now();
     }
 }
 

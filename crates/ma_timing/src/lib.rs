@@ -56,15 +56,42 @@ unsafe impl Sync for Timer<'_> {}
 impl<'a> Timer<'a> {
     #[inline(always)]
     pub fn start(&mut self) {
-        self.curmsg.start_t = ma_time::Instant::now();
+        self.set_start(Instant::now());
     }
     #[inline(always)]
     pub fn start_t(&self) -> &Instant {
         &self.curmsg.start_t
     }
     #[inline(always)]
+    pub fn stop_t(&self) -> &Instant {
+        &self.curmsg.stop_t
+    }
+    #[inline(always)]
     pub fn stop(&mut self) {
-        self.curmsg.stop_t = ma_time::Instant::now();
+        self.set_stop(Instant::now());
+        self.send_cur();
+    }
+    #[inline(always)]
+    pub fn stop_and_latency(&mut self, ingestion_t: Instant) {
+        self.stop();
+        self.latency_producer
+            .produce(&messages::LatencyMeasurement::TwoStamps(
+                messages::LatencyMessage {
+                    ingestion_t,
+                    arrival_t: self.curmsg.stop_t,
+                },
+            ));
+    }
+    #[inline(always)]
+    pub fn set_stop(&mut self, stop: Instant) {
+        self.curmsg.stop_t = stop;
+    }
+    #[inline(always)]
+    pub fn set_start(&mut self, start: Instant) {
+        self.curmsg.start_t = start;
+    }
+    #[inline(always)]
+    pub fn send_cur(&mut self) {
         self.timing_producer
             .produce(&messages::TimingMeasurement::TwoStamps(self.curmsg));
     }
