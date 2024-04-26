@@ -65,6 +65,9 @@ impl Instant {
     pub fn elapsed(&self) -> Nanos {
         Nanos(global_clock().delta_as_nanos(self.0, rdtscp()))
     }
+    pub fn as_delta_nanos(&self) -> Nanos {
+        Nanos(global_clock().delta_as_nanos(0, self.0))
+    }
 }
 
 fn rdtscp() -> u64 {
