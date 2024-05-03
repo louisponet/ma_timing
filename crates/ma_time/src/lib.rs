@@ -15,7 +15,7 @@ static GLOBAL_CLOCK: OnceCell<Clock> = OnceCell::new();
 
 #[inline(always)]
 fn global_clock() -> &'static Clock {
-    GLOBAL_CLOCK.get_or_init(|| Clock::new())
+    GLOBAL_CLOCK.get_or_init(Clock::new)
 }
 
 // Everything is rdtsc brother
@@ -429,6 +429,12 @@ impl Repeater {
     }
 }
 
+pub fn timeit<O>(msg: &str, f: impl FnOnce() -> O) -> O {
+    let curt = Instant::now();
+    let o = f();
+    println!("Timing result: {msg} took {}", curt.elapsed());
+    o
+}
 // pub fn test_system_tune() {
 //     unsafe {
 //         let n = 100000;
