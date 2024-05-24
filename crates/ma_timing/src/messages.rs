@@ -1,4 +1,4 @@
-use ma_time::{Instant, Nanos, TimeStamped};
+use ma_time::{Duration, Instant, TimeStamped};
 
 
 //TODO: Cleanup can be merged I think
@@ -19,23 +19,23 @@ impl LatencyMessage {
             arrival_t,
         }
     }
-    pub fn latency(&self) -> Nanos {
-        self.arrival_t - self.ingestion_t
+    pub fn latency(&self) -> Duration {
+        Duration(self.arrival_t.0 - self.ingestion_t.0)
     }
 }
 
 #[derive(Clone, Copy)]
 pub enum LatencyMeasurement {
     TwoStamps(LatencyMessage),
-    Interval(Nanos)
+    Interval(Duration)
 }
 impl Default for LatencyMeasurement {
     fn default() -> Self {
-        Self::Interval(Nanos::default())
+        Self::Interval(Duration::default())
     }
 }
 impl LatencyMeasurement {
-    pub fn latency(&self) -> Nanos {
+    pub fn latency(&self) -> Duration {
         match self {
             Self::TwoStamps(msg) => msg.latency(),
             Self::Interval(n) => *n
@@ -60,19 +60,19 @@ impl TimingMessage {
         }
     }
 
-    pub fn elapsed(&self) -> Nanos {
-        self.stop_t - self.start_t
+    pub fn elapsed(&self) -> Duration {
+        Duration(self.stop_t.0 - self.start_t.0)
     }
 }
 
 #[derive(Clone, Copy)]
 pub enum TimingMeasurement {
     TwoStamps(TimingMessage),
-    Interval(Nanos)
+    Interval(Duration)
 }
 
 impl TimingMeasurement {
-    pub fn elapsed(&self) -> Nanos {
+    pub fn elapsed(&self) -> Duration {
         match self {
             Self::TwoStamps(msg) => msg.elapsed(),
             Self::Interval(n) => *n
@@ -82,7 +82,7 @@ impl TimingMeasurement {
 
 impl Default for TimingMeasurement {
     fn default() -> Self {
-        Self::Interval(Nanos::default())
+        Self::Interval(Duration::default())
     }
 }
 /// To perform rudimentary verification for a msg that was found at a given position in the queue

@@ -25,7 +25,7 @@ criterion.workspace = true
 core_affinity.workspace = true
 
 [features]
-default = []
+default = ["timekeeper"]
 timekeeper = ["dep:crossterm", "dep:rgb", "dep:clap", "dep:ratatui", "dep:textplots", "dep:core_affinity"]
 
 [[bin]]

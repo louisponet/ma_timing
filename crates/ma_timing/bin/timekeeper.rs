@@ -49,11 +49,11 @@ fn main() {
 
     let config = Configuration::parse();
     let mut tc = TimeKeeper::new(
-        0,
+        *core_affinity::get_core_ids().unwrap().last().unwrap(),
         Duration::from_secs_f32(config.report_interval),
         config.samples_per_datapoint,
         config.n_datapoints,
-        ma_time::Nanos(config.minimum_duration)
+        ma_time::Duration(config.minimum_duration)
     );
     tc.execute();
     stdout().execute(LeaveAlternateScreen).unwrap();

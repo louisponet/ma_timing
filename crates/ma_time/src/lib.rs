@@ -8,7 +8,6 @@ use std::{
 use serde::{Deserialize, Serialize};
 use web_time::UNIX_EPOCH;
 // pub type Instant = quanta::Instant;
-pub type Duration = std::time::Duration;
 pub type Clock = quanta::Clock;
 
 static GLOBAL_CLOCK: OnceCell<Clock> = OnceCell::new();
@@ -18,10 +17,254 @@ fn global_clock() -> &'static Clock {
     GLOBAL_CLOCK.get_or_init(Clock::new)
 }
 
+fn rdtscp() -> u64 {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::arch::x86_64::__rdtscp;
+        unsafe { __rdtscp(&mut 0u32 as *mut _) }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        global_clock().raw()
+    }
+}
+
+
 // Everything is rdtsc brother
 #[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Instant(pub u64);
+impl Instant {
+    #[inline(never)]
+    pub fn now() -> Self {
+        Instant(rdtscp())
+    }
+    pub fn elapsed(&self) -> Nanos {
+        Nanos(global_clock().delta_as_nanos(self.0, rdtscp()))
+    }
+    pub fn as_delta_nanos(&self) -> Nanos {
+        Nanos(global_clock().delta_as_nanos(0, self.0))
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
+#[repr(C)]
+pub struct Duration(pub u64);
+
+impl Duration {
+    pub const MAX: Self = Self(u64::MAX);
+    pub const ZERO: Self = Self(0);
+
+    pub fn elapsed(instant: Instant) -> Self {
+        let n = rdtscp();
+        Self(n - instant.0)
+    }
+
+    pub fn saturating_sub(self, rhs: Duration) -> Self {
+        Self(self.0.saturating_sub(rhs.0))
+    }
+
+}
+
+impl std::fmt::Display for Duration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Nanos::from(*self).fmt(f)
+    }
+}
+
+impl Add for Duration {
+    type Output = Duration;
+
+    fn add(self, rhs: Duration) -> Duration {
+        Duration(self.0.wrapping_add(rhs.0))
+    }
+}
+
+impl AddAssign for Duration {
+    fn add_assign(&mut self, rhs: Duration) {
+        *self = *self + rhs;
+    }
+}
+
+impl Sub for Duration {
+    type Output = Duration;
+
+    fn sub(self, rhs: Duration) -> Duration {
+        Duration(self.0.wrapping_sub(rhs.0))
+    }
+}
+
+impl SubAssign for Duration {
+    fn sub_assign(&mut self, rhs: Duration) {
+        *self = *self - rhs;
+    }
+}
+
+impl Sub<u64> for Duration {
+    type Output = Duration;
+
+    fn sub(self, rhs: u64) -> Duration {
+        Duration(self.0.wrapping_sub(rhs))
+    }
+}
+
+impl SubAssign<u64> for Duration {
+    fn sub_assign(&mut self, rhs: u64) {
+        *self = *self - rhs;
+    }
+}
+
+impl Mul<u32> for Duration {
+    type Output = Duration;
+
+    fn mul(self, rhs: u32) -> Duration {
+        Duration(self.0 * rhs as u64)
+    }
+}
+
+impl Mul<Duration> for u32 {
+    type Output = Duration;
+
+    fn mul(self, rhs: Duration) -> Duration {
+        rhs * self
+    }
+}
+
+impl MulAssign<u32> for Duration {
+    fn mul_assign(&mut self, rhs: u32) {
+        *self = *self * rhs;
+    }
+}
+
+impl Div<u32> for Duration {
+    type Output = Duration;
+
+    fn div(self, rhs: u32) -> Duration {
+        Duration(self.0 / rhs as u64)
+    }
+}
+impl Div<usize> for Duration {
+    type Output = Duration;
+
+    fn div(self, rhs: usize) -> Duration {
+        Duration(self.0 / rhs as u64)
+    }
+}
+
+impl DivAssign<u32> for Duration {
+    fn div_assign(&mut self, rhs: u32) {
+        *self = *self / rhs;
+    }
+}
+impl Mul<u64> for Duration {
+    type Output = Duration;
+
+    fn mul(self, rhs: u64) -> Duration {
+        Duration(self.0 * rhs as u64)
+    }
+}
+
+impl Mul<Duration> for u64 {
+    type Output = Duration;
+
+    fn mul(self, rhs: Duration) -> Duration {
+        rhs * self
+    }
+}
+
+impl MulAssign<u64> for Duration {
+    fn mul_assign(&mut self, rhs: u64) {
+        *self = *self * rhs;
+    }
+}
+
+impl Div<u64> for Duration {
+    type Output = Duration;
+
+    fn div(self, rhs: u64) -> Duration {
+        Duration(self.0 / rhs as u64)
+    }
+}
+
+impl DivAssign<u64> for Duration {
+    fn div_assign(&mut self, rhs: u64) {
+        *self = *self / rhs;
+    }
+}
+
+impl PartialEq for Duration {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for Duration {}
+
+impl PartialOrd for Duration {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Duration {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl std::iter::Sum for Duration {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        Duration(iter.map(|v| v.0).sum())
+    }
+}
+impl<'a> std::iter::Sum<&'a Self> for Duration {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = &'a Self>,
+    {
+        Duration(iter.map(|v| v.0).sum())
+    }
+}
+
+impl From<u64> for Duration {
+    fn from(value: u64) -> Self {
+        Duration(value)
+    }
+}
+impl From<u128> for Duration {
+    fn from(value: u128) -> Self {
+        Duration(value as u64)
+    }
+}
+impl From<u32> for Duration {
+    fn from(value: u32) -> Self {
+        Duration(value as u64)
+    }
+}
+impl From<i64> for Duration {
+    fn from(value: i64) -> Self {
+        Duration(value as u64)
+    }
+}
+impl From<i32> for Duration {
+    fn from(value: i32) -> Self {
+        Duration(value as u64)
+    }
+}
+
+impl From<Duration> for i64 {
+    fn from(val: Duration) -> Self {
+        val.0 as i64
+    }
+}
+
+impl From<Duration> for std::time::Duration {
+    fn from(value: Duration) -> Self {
+        std::time::Duration::from_nanos(Nanos::from(value).0)
+    }
+}
 
 #[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
 #[repr(C)]
@@ -55,30 +298,9 @@ impl Nanos {
     pub fn now() -> Self {
         web_time::SystemTime::now().into()
     }
-}
 
-impl Instant {
-    #[inline(always)]
-    pub fn now() -> Self {
-        Instant(rdtscp())
-    }
-    pub fn elapsed(&self) -> Nanos {
-        Nanos(global_clock().delta_as_nanos(self.0, rdtscp()))
-    }
-    pub fn as_delta_nanos(&self) -> Nanos {
-        Nanos(global_clock().delta_as_nanos(0, self.0))
-    }
-}
-
-fn rdtscp() -> u64 {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        use std::arch::x86_64::__rdtscp;
-        unsafe { __rdtscp(&mut 0u32 as *mut _) }
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        global_clock().raw()
+    pub fn saturating_sub(self, rhs: Nanos) -> Self {
+        Self(self.0.saturating_sub(rhs.0))
     }
 }
 
@@ -94,6 +316,12 @@ impl std::fmt::Display for Nanos {
         } else {
             write!(f, "{}s", (v / 1000000) as f64 / 1000.0)
         }
+    }
+}
+
+impl From<Duration> for Nanos {
+    fn from(value: Duration) -> Self {
+        Nanos(global_clock().delta_as_nanos(0, value.0))
     }
 }
 

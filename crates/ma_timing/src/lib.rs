@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{arch::x86_64::_mm_lfence, fmt::Display};
 
 pub mod messages;
 pub mod throughput;
@@ -17,7 +17,7 @@ const QUEUE_DIR: &'static str = "Global";
 #[cfg(target_os = "linux")]
 const QUEUE_DIR: &'static str = "/dev/shm";
 /// The size of the latency ma_queues
-const QUEUE_SIZE: usize = 4096;
+const QUEUE_SIZE: usize = 2usize.pow(17);
 
 #[repr(C)]
 pub struct Timer<'a> {
@@ -54,24 +54,26 @@ unsafe impl Send for Timer<'_> {}
 unsafe impl Sync for Timer<'_> {}
 
 impl<'a> Timer<'a> {
-    #[inline(always)]
+    #[inline(never)]
     pub fn start(&mut self) {
         self.set_start(Instant::now());
+        #[cfg(not(target_arch = "wasm32"))]
+        unsafe{ _mm_lfence() };
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn start_t(&self) -> &Instant {
         &self.curmsg.start_t
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn stop_t(&self) -> &Instant {
         &self.curmsg.stop_t
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn stop(&mut self) {
         self.set_stop(Instant::now());
         self.send_cur();
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn stop_and_latency(&mut self, ingestion_t: Instant) {
         self.stop();
         self.latency_producer
@@ -82,20 +84,22 @@ impl<'a> Timer<'a> {
                 },
             ));
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn set_stop(&mut self, stop: Instant) {
         self.curmsg.stop_t = stop;
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn set_start(&mut self, start: Instant) {
         self.curmsg.start_t = start;
     }
-    #[inline(always)]
+
+    #[inline(never)]
     pub fn send_cur(&mut self) {
         self.timing_producer
             .produce(&messages::TimingMeasurement::TwoStamps(self.curmsg));
     }
-    #[inline(always)]
+
+    #[inline(never)]
     pub fn latency(&mut self, ingestion_t: Instant) {
         let curt = Instant::now();
         self.latency_producer
@@ -106,7 +110,7 @@ impl<'a> Timer<'a> {
                 },
             ));
     }
-    #[inline(always)]
+    #[inline(never)]
     pub fn latency_start(&mut self, ingestion_t: Instant) {
         let curt = Instant::now();
         self.curmsg.start_t = curt;
@@ -119,10 +123,19 @@ impl<'a> Timer<'a> {
             ));
     }
     // pretty hacky
-    #[inline(always)]
-    pub fn latency_nanos(&mut self, nanos: Nanos) {
+    // #[inline(always)]
+    // pub fn latency_nanos(&mut self, nanos: Nanos) {
+    //     self.latency_producer
+    //         .produce(&messages::LatencyMeasurement::Interval(nanos));
+    // }
+    pub fn latency_till_stop(&mut self, ingestion_t: Instant) {
         self.latency_producer
-            .produce(&messages::LatencyMeasurement::Interval(nanos));
+            .produce(&messages::LatencyMeasurement::TwoStamps(
+                messages::LatencyMessage {
+                    ingestion_t,
+                    arrival_t: self.curmsg.stop_t,
+                },
+            ));
     }
 }
 

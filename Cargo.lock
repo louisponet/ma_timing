@@ -548,7 +548,6 @@ dependencies = [
 [[package]]
 name = "ma_queues"
 version = "0.1.0"
-source = "git+https://github.com/louisponet/ma_ipc.git#8f5170b03966e3595824d4db79deb8c4dd77f172"
 dependencies = [
  "log",
  "shared_memory",
