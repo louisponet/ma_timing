@@ -13,7 +13,8 @@ authors = ["Louis Ponet <louisponet@gmail.com>"]
 license = "MIT"
 
 [workspace.dependencies]
-ma_time = {path = "crates/ma_time"}
+ma_time   = {path = "crates/ma_time"}
+ma_timing = {path = "crates/ma_timing"}
 # ma_queues = {git = "https://github.com/louisponet/ma_ipc.git", default-features=false, features=["shmem"]}
 ma_queues = {path = "../ma_ipc/crates/ma_queues", default-features=false, features=["shmem"]}
 

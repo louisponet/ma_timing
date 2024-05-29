@@ -335,7 +335,6 @@ impl TimeKeeper {
                             ma_queues::QueueType::SPMC,
                         )
                         .expect("couldn't open latency queue");
-                        latency_q.verify();
                         latency_consumers.push(Consumer::from(latency_q));
                         let business_q = ma_queues::Queue::shared(
                             format!("{}/timing-{real_name}", crate::QUEUE_DIR),
@@ -343,13 +342,12 @@ impl TimeKeeper {
                             ma_queues::QueueType::SPMC,
                         )
                         .expect("couldn't open timing queue");
-                        business_q.verify();
                         business_consumers.push(Consumer::from(business_q));
                     }
                 }
             }
-            let curt = Instant::now();
-            while curt.elapsed() < Nanos::from_millis(16) {
+            let curt = std::time::Instant::now();
+            while curt.elapsed() < rep_interval {
                 handle_latency_messages(
                     &mut time_datas,
                     &mut latency_consumers,
@@ -360,45 +358,45 @@ impl TimeKeeper {
                     &mut business_consumers,
                     self.samples_per_datapoint,
                 );
-            }
-            if event::poll(std::time::Duration::ZERO).unwrap() {
-                if let event::Event::Key(key) = event::read().unwrap() {
-                    if matches!(key.kind, KeyEventKind::Press) {
-                        match key.code {
-                            KeyCode::Char('q') => return,
-                            KeyCode::Char('s') => {
-                                for d in &mut time_datas {
-                                    d.direction = stacking_direction;
+                if event::poll(std::time::Duration::ZERO).unwrap() {
+                    if let event::Event::Key(key) = event::read().unwrap() {
+                        if matches!(key.kind, KeyEventKind::Press) {
+                            match key.code {
+                                KeyCode::Char('q') => return,
+                                KeyCode::Char('s') => {
+                                    for d in &mut time_datas {
+                                        d.direction = stacking_direction;
+                                    }
+                                    stacking_direction = match stacking_direction {
+                                        Direction::Horizontal => Direction::Vertical,
+                                        Direction::Vertical => Direction::Horizontal,
+                                    };
+                                    terminal.draw(|frame| {
+                                        draw(frame, &mut time_datas, curid);
+                                    });
                                 }
-                                stacking_direction = match stacking_direction {
-                                    Direction::Horizontal => Direction::Vertical,
-                                    Direction::Vertical => Direction::Horizontal,
-                                };
-                                terminal.draw(|frame| {
-                                    draw(frame, &mut time_datas, curid);
-                                });
-                            }
 
-                            KeyCode::Down => {
-                                curid += 1;
-                                if curid > time_datas.len() - 1 {
-                                    curid = 0;
+                                KeyCode::Down => {
+                                    curid += 1;
+                                    if curid > time_datas.len() - 1 {
+                                        curid = 0;
+                                    }
+                                    terminal.draw(|frame| {
+                                        draw(frame, &mut time_datas, curid);
+                                    });
                                 }
-                                terminal.draw(|frame| {
-                                    draw(frame, &mut time_datas, curid);
-                                });
-                            }
-                            KeyCode::Up => {
-                                if curid == 0 {
-                                    curid = time_datas.len() - 1;
-                                } else {
-                                    curid -= 1;
+                                KeyCode::Up => {
+                                    if curid == 0 {
+                                        curid = time_datas.len() - 1;
+                                    } else {
+                                        curid -= 1;
+                                    }
+                                    terminal.draw(|frame| {
+                                        draw(frame, &mut time_datas, curid);
+                                    });
                                 }
-                                terminal.draw(|frame| {
-                                    draw(frame, &mut time_datas, curid);
-                                });
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }

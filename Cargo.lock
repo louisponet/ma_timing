@@ -584,6 +584,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ma_timing_ffi"
+version = "0.1.0"
+dependencies = [
+ "ma_time",
+ "ma_timing",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
