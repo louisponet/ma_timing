@@ -20,13 +20,13 @@ const QUEUE_DIR: &'static str = "/dev/shm";
 const QUEUE_SIZE: usize = 2usize.pow(17);
 
 #[repr(C)]
-pub struct Timer<'a> {
+pub struct Timer {
     pub curmsg: messages::TimingMessage,
-    timing_producer: ma_queues::Producer<'a, messages::TimingMeasurement>,
-    latency_producer: ma_queues::Producer<'a, messages::LatencyMeasurement>,
+    timing_producer: ma_queues::Producer<'static, messages::TimingMeasurement>,
+    latency_producer: ma_queues::Producer<'static, messages::LatencyMeasurement>,
 }
 
-impl<'a> Timer<'a> {
+impl Timer {
     pub fn new<S: Display>(name: S) -> Self {
         let _ = std::fs::create_dir(QUEUE_DIR);
         let timing_queue = ma_queues::Queue::shared(
@@ -50,10 +50,10 @@ impl<'a> Timer<'a> {
     }
 }
 
-unsafe impl Send for Timer<'_> {}
-unsafe impl Sync for Timer<'_> {}
+unsafe impl Send for Timer {}
+unsafe impl Sync for Timer {}
 
-impl<'a> Timer<'a> {
+impl Timer {
     #[inline(never)]
     pub fn start(&mut self) {
         self.set_start(Instant::now());
