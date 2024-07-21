@@ -43,6 +43,9 @@ fn rdtscp() -> u64 {
 #[repr(C)]
 pub struct Instant(pub u64);
 impl Instant {
+
+    pub const MAX: Self = Self(u64::MAX);
+    pub const ZERO: Self = Self(0);
     #[inline(never)]
     pub fn now() -> Self {
         Instant(rdtscp())

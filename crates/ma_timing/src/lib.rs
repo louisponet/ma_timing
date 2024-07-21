@@ -67,14 +67,12 @@ impl Timer {
     }
     pub fn stop(&mut self) {
         self.set_stop(Instant::now());
-        self.timing_producer
-            .produce(&self.curmsg);
+        self.send_business();
     }
     pub fn stop_and_latency(&mut self, ingestion_t: Instant) {
         self.stop();
         self.set_start(ingestion_t);
-        self.latency_producer
-            .produce(&self.curmsg);
+        self.send_latency();
     }
     pub fn set_stop(&mut self, stop: Instant) {
         self.curmsg.stop_t = stop;
@@ -86,7 +84,15 @@ impl Timer {
     pub fn latency(&mut self, ingestion_t: Instant) {
         self.set_stop(Instant::now());
         self.set_start(ingestion_t);
+        self.send_latency();
+    }
+    pub fn send_latency(&mut self) {
         self.latency_producer
+            .produce(&self.curmsg);
+    }
+
+    pub fn send_business(&mut self) {
+        self.timing_producer
             .produce(&self.curmsg);
     }
 }
