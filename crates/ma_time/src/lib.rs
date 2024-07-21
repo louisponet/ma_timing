@@ -11,10 +11,18 @@ use web_time::UNIX_EPOCH;
 pub type Clock = quanta::Clock;
 
 static GLOBAL_CLOCK: OnceCell<Clock> = OnceCell::new();
+static GLOBAL_NANOS_FOR_100: OnceCell<u64> = OnceCell::new();
 
 #[inline(always)]
 fn global_clock() -> &'static Clock {
     GLOBAL_CLOCK.get_or_init(Clock::new)
+}
+
+#[inline(always)]
+fn nanos_for_100() -> u64 {
+    *GLOBAL_NANOS_FOR_100.get_or_init(|| {
+        global_clock().delta_as_nanos(0, 100)
+    })
 }
 
 fn rdtscp() -> u64 {
@@ -64,6 +72,30 @@ impl Duration {
         Self(self.0.saturating_sub(rhs.0))
     }
 
+    pub fn from_secs(s: u64) -> Self {
+        Self(s * 100_000_000_000/nanos_for_100())
+    }
+    pub fn from_secs_f64(s: f64) -> Self {
+        Self::from_secs((s * 1_000_000_000.0).round() as u64)
+    }
+    pub  fn from_millis(s: u64) -> Self {
+        Self(s * 100_000_000/nanos_for_100())
+    }
+    pub  fn from_micros(s: u64) -> Self {
+        Self(s * 100_000/nanos_for_100())
+    }
+    pub  fn from_nanos(s: u64) -> Self {
+        Self(s * 100/nanos_for_100())
+    }
+    pub fn as_secs(&self) -> f64 {
+        (self.0 * nanos_for_100()) as f64 / 100_000_000_000.0
+    }
+    pub fn as_millis(&self) -> f64 {
+        (self.0 * nanos_for_100()) as f64 / 100_000_000.0
+    }
+    pub fn as_micros(&self) -> f64 {
+        (self.0 * nanos_for_100()) as f64 / 100_000.0
+    }
 }
 
 impl std::fmt::Display for Duration {
@@ -160,7 +192,7 @@ impl Mul<u64> for Duration {
     type Output = Duration;
 
     fn mul(self, rhs: u64) -> Duration {
-        Duration(self.0 * rhs as u64)
+        Duration(self.0 * rhs)
     }
 }
 
@@ -182,7 +214,7 @@ impl Div<u64> for Duration {
     type Output = Duration;
 
     fn div(self, rhs: u64) -> Duration {
-        Duration(self.0 / rhs as u64)
+        Duration(self.0 / rhs)
     }
 }
 
@@ -266,6 +298,18 @@ impl From<Duration> for std::time::Duration {
     }
 }
 
+impl From<std::time::Duration> for Duration {
+    fn from(value: std::time::Duration) -> Self {
+        Self((value.as_nanos() * 100 / nanos_for_100() as u128) as u64)
+    }
+}
+
+impl From<Nanos> for Duration {
+    fn from(value: Nanos) -> Self {
+        Self(value.0 * 100 / nanos_for_100())
+    }
+}
+
 #[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Nanos(pub u64);
@@ -336,15 +380,13 @@ impl Sub<Nanos> for Instant {
     type Output = Instant;
 
     fn sub(self, rhs: Nanos) -> Instant {
-        let nanos_for_100 = global_clock().delta_as_nanos(0, 100);
-        Instant(self.0 - rhs.0 / nanos_for_100 * 100)
+        Instant(self.0 - rhs.0 / nanos_for_100() * 100)
     }
 }
 impl Add<Nanos> for Instant {
     type Output = Instant;
     fn add(self, rhs: Nanos) -> Self::Output {
-        let nanos_for_100 = global_clock().delta_as_nanos(0, 100);
-        Instant(self.0 + rhs.0 / nanos_for_100 * 100)
+        Instant(self.0 + rhs.0 / nanos_for_100() * 100)
     }
 }
 
@@ -364,15 +406,6 @@ impl PartialOrd for Instant {
 impl Ord for Instant {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
-    }
-}
-
-pub trait TimeStamped {
-    fn ingestion_t(&self) -> Instant;
-
-    #[inline(always)]
-    fn elapsed(&self) -> Nanos {
-        self.ingestion_t().elapsed()
     }
 }
 
@@ -464,7 +497,7 @@ impl Mul<u64> for Nanos {
     type Output = Nanos;
 
     fn mul(self, rhs: u64) -> Nanos {
-        Nanos(self.0 * rhs as u64)
+        Nanos(self.0 * rhs)
     }
 }
 
@@ -486,7 +519,7 @@ impl Div<u64> for Nanos {
     type Output = Nanos;
 
     fn div(self, rhs: u64) -> Nanos {
-        Nanos(self.0 / rhs as u64)
+        Nanos(self.0 / rhs)
     }
 }
 
@@ -586,10 +619,10 @@ impl FromStr for Nanos {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.contains("ns") {
-            s.parse::<u64>().map(|v| Nanos(v))
+            s.parse::<u64>().map(Nanos)
         } else {
             let len = s.len();
-            s[..len - 2].parse::<u64>().map(|v| Nanos(v))
+            s[..len - 2].parse::<u64>().map(Nanos)
         }
     }
 }
@@ -627,29 +660,30 @@ where
         _ => f(),
     }
 }
+
 #[inline(always)]
-pub fn busy_sleep(duration: Option<Nanos>) {
+pub fn busy_sleep(duration: Option<Duration>) {
     match duration {
-        None => return,
-        Some(duration) if duration == Nanos::ZERO => return,
+        None => (),
+        Some(duration) if duration == Duration::ZERO => (),
         Some(duration) => {
             let curt = Instant::now();
-            while curt.elapsed() < duration {}
+            while Duration::elapsed(curt) < duration {}
         }
     }
 }
 
 pub struct Repeater {
-    interval: Nanos,
+    interval: Duration,
     last_acted: Instant
 }
 
 impl Repeater {
-    pub fn every(interval: Nanos) -> Self {
+    pub fn every(interval: Duration) -> Self {
         Self { interval, last_acted: Instant::now()}
     }
-    pub fn maybe<F>(&mut self, mut f: F) where F: FnMut(Nanos) -> () {
-        let el = self.last_acted.elapsed();
+    pub fn maybe<F>(&mut self, mut f: F) where F: FnMut(Duration) {
+        let el = Duration::elapsed(self.last_acted);
         if el >= self.interval {
             f(el);
             self.last_acted = Instant::now();

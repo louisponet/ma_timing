@@ -18,9 +18,6 @@ pub struct Configuration {
     /// in secs
     #[arg(long, default_value_t = 0.5)]
     report_interval: f32,
-
-    #[arg(long, default_value_t = 50)]
-    minimum_duration: u64,
 }
 
 pub fn setup_logging(log_file: Option<&str>) {
@@ -53,7 +50,6 @@ fn main() {
         Duration::from_secs_f32(config.report_interval),
         config.samples_per_datapoint,
         config.n_datapoints,
-        ma_time::Duration(config.minimum_duration)
     );
     tc.execute();
     stdout().execute(LeaveAlternateScreen).unwrap();

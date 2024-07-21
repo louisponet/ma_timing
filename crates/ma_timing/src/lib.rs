@@ -1,4 +1,4 @@
-use std::{arch::x86_64::_mm_lfence, fmt::Display};
+use std::fmt::Display;
 
 pub mod messages;
 pub mod throughput;
@@ -9,21 +9,21 @@ pub use timekeeper::TimeKeeper;
 pub mod ffi;
 pub mod utils;
 
-use ma_time::{Instant, Nanos};
+use ma_time::Instant;
 pub use throughput::ThroughputSampler;
 /// Where are the latency ma_queues stored
 #[cfg(target_os = "windows")]
-const QUEUE_DIR: &'static str = "Global";
+const QUEUE_DIR: &str = "Global";
 #[cfg(target_os = "linux")]
-const QUEUE_DIR: &'static str = "/dev/shm";
+const QUEUE_DIR: &str = "/dev/shm";
 /// The size of the latency ma_queues
 const QUEUE_SIZE: usize = 2usize.pow(17);
 
 #[repr(C)]
 pub struct Timer {
     pub curmsg: messages::TimingMessage,
-    timing_producer: ma_queues::Producer<'static, messages::TimingMeasurement>,
-    latency_producer: ma_queues::Producer<'static, messages::LatencyMeasurement>,
+    timing_producer: ma_queues::Producer<'static, messages::TimingMessage>,
+    latency_producer: ma_queues::Producer<'static, messages::TimingMessage>,
 }
 
 impl Timer {
@@ -54,88 +54,40 @@ unsafe impl Send for Timer {}
 unsafe impl Sync for Timer {}
 
 impl Timer {
-    #[inline(never)]
     pub fn start(&mut self) {
         self.set_start(Instant::now());
-        #[cfg(not(target_arch = "wasm32"))]
-        unsafe{ _mm_lfence() };
+        #[cfg(target_arch = "x86_64")]
+        unsafe{ std::arch::x86_64::_mm_lfence() };
     }
-    #[inline(never)]
     pub fn start_t(&self) -> &Instant {
         &self.curmsg.start_t
     }
-    #[inline(never)]
     pub fn stop_t(&self) -> &Instant {
         &self.curmsg.stop_t
     }
-    #[inline(never)]
     pub fn stop(&mut self) {
         self.set_stop(Instant::now());
-        self.send_cur();
+        self.timing_producer
+            .produce(&self.curmsg);
     }
-    #[inline(never)]
     pub fn stop_and_latency(&mut self, ingestion_t: Instant) {
         self.stop();
+        self.set_start(ingestion_t);
         self.latency_producer
-            .produce(&messages::LatencyMeasurement::TwoStamps(
-                messages::LatencyMessage {
-                    ingestion_t,
-                    arrival_t: self.curmsg.stop_t,
-                },
-            ));
+            .produce(&self.curmsg);
     }
-    #[inline(never)]
     pub fn set_stop(&mut self, stop: Instant) {
         self.curmsg.stop_t = stop;
     }
-    #[inline(never)]
     pub fn set_start(&mut self, start: Instant) {
         self.curmsg.start_t = start;
     }
 
-    #[inline(never)]
-    pub fn send_cur(&mut self) {
-        self.timing_producer
-            .produce(&messages::TimingMeasurement::TwoStamps(self.curmsg));
-    }
-
-    #[inline(never)]
     pub fn latency(&mut self, ingestion_t: Instant) {
-        let curt = Instant::now();
+        self.set_stop(Instant::now());
+        self.set_start(ingestion_t);
         self.latency_producer
-            .produce(&messages::LatencyMeasurement::TwoStamps(
-                messages::LatencyMessage {
-                    ingestion_t,
-                    arrival_t: curt,
-                },
-            ));
-    }
-    #[inline(never)]
-    pub fn latency_start(&mut self, ingestion_t: Instant) {
-        let curt = Instant::now();
-        self.curmsg.start_t = curt;
-        self.latency_producer
-            .produce(&messages::LatencyMeasurement::TwoStamps(
-                messages::LatencyMessage {
-                    ingestion_t,
-                    arrival_t: curt,
-                },
-            ));
-    }
-    // pretty hacky
-    // #[inline(always)]
-    // pub fn latency_nanos(&mut self, nanos: Nanos) {
-    //     self.latency_producer
-    //         .produce(&messages::LatencyMeasurement::Interval(nanos));
-    // }
-    pub fn latency_till_stop(&mut self, ingestion_t: Instant) {
-        self.latency_producer
-            .produce(&messages::LatencyMeasurement::TwoStamps(
-                messages::LatencyMessage {
-                    ingestion_t,
-                    arrival_t: self.curmsg.stop_t,
-                },
-            ));
+            .produce(&self.curmsg);
     }
 }
 
